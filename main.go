@@ -22,6 +22,7 @@ func main() {
 	// define http handlers
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
+	http.HandleFunc("/getAll", handleGetAll(searcher))
 	http.HandleFunc("/search", handleSearch(searcher))
 	// define port, we need to set it as env for Heroku deployment
 	port := os.Getenv("PORT")
@@ -34,6 +35,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to start server due: %v", err)
 	}
+}
+
+func handleGetAll(s *Searcher) http.HandlerFunc {
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			records := s.SearchAll()
+			buf := new(bytes.Buffer)
+			encoder := json.NewEncoder(buf)
+			encoder.Encode(records)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(buf.Bytes())
+		},
+	)
 }
 
 func handleSearch(s *Searcher) http.HandlerFunc {
@@ -98,11 +112,20 @@ func (s *Searcher) Load(filepath string) error {
 func (s *Searcher) Search(query string) ([]Record, error) {
 	var result []Record
 	for _, record := range s.records {
-		if strings.Contains(record.Title, query) || strings.Contains(record.Content, query) {
+		if strings.Contains(strings.ToLower(record.Title), strings.ToLower(query)) ||
+			strings.Contains(strings.ToLower(record.Content), strings.ToLower(query)) {
 			result = append(result, record)
 		}
 	}
 	return result, nil
+}
+
+func (s *Searcher) SearchAll() []Record {
+	var result []Record
+	for _, record := range s.records {
+		result = append(result, record)
+	}
+	return result
 }
 
 type Record struct {
